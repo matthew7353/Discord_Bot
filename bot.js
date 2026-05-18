@@ -1,8 +1,12 @@
+require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
 const { joinVoiceChannel, EndBehaviorType, VoiceConnectionStatus, generateDependencyReport } = require('@discordjs/voice');
-const prism = require('prism-media');
 const fs = require('fs');
 const path = require('path');
+
+// --- BEZPOŚREDNI IMPORT KLAS OGG (Obejście błędu prism-media) ---
+const prism = require('prism-media');
+// ----------------------------------------------------------------
 
 console.log("=== RAPORT ZALEŻNOŚCI GŁOSOWYCH ===");
 console.log(generateDependencyReport());
@@ -17,8 +21,8 @@ const client = new Client({
     ]
 });
 
-// TUTAJ WPISZ NOWY TOKEN PO JEGO ZREGENEROWANIU NA DISCORD DEVELOPER PORTAL
-const TOKEN = 'TWÓJ_NOWY_BEZPIECZNY_TOKEN'; 
+// Pobieranie tokena z pliku .env
+const TOKEN = process.env.DISCORD_TOKEN;
 
 const recordingsDir = path.join(__dirname, 'recordings');
 if (!fs.existsSync(recordingsDir)) {
@@ -43,16 +47,11 @@ client.on('messageCreate', async (message) => {
             return message.reply('Musisz najpierw wejść na kanał głosowy!');
         }
 
-        // --- CZYSZCZENIE STARYCH DANYCH ---
         console.log("Czyszczenie starych plików przed nową sesją...");
- 
         const oldFiles = fs.readdirSync(recordingsDir);
         for (const file of oldFiles) {
-            fs.unlinkSync(path.join(recordingsDir, file));
+            if (file.endsWith('.ogg')) fs.unlinkSync(path.join(recordingsDir, file));
         }
-        if (fs.existsSync('transcript.txt')) fs.unlinkSync('transcript.txt');
-        if (fs.existsSync('notatka.md')) fs.unlinkSync('notatka.md');
-        // ----------------------------------
 
         currentConnection = joinVoiceChannel({
             channelId: voiceChannel.id,
@@ -62,9 +61,20 @@ client.on('messageCreate', async (message) => {
             selfMute: false
         });
 
+        currentConnection.on('stateChange', (oldState, newState) => {
+            console.log(`[VOICE] Zmiana stanu: ${oldState.status} -> ${newState.status}`);
+        });
+
+        currentConnection.on('error', (error) => {
+            console.error(`[VOICE KRYTYCZNY BŁĄD]:`, error);
+        });
+
         currentConnection.on(VoiceConnectionStatus.Ready, () => {
             console.log(`Połączono z kanałem ${voiceChannel.name}! Czekam na dźwięk...`);
-            message.reply(`Wszedłem na kanał! Zaczynam nasłuch.`);
+            
+            // Dodane catch na wypadek braku uprawnień na kanale tekstowym!
+            message.reply(`Wszedłem na kanał! Zaczynam nasłuch.`)
+                .catch(err => console.error("[BŁĄD DISCORDA] Nie mam uprawnień do pisania na tym kanale!", err.message));
 
             const receiver = currentConnection.receiver;
 
@@ -77,7 +87,6 @@ client.on('messageCreate', async (message) => {
                 const user = client.users.cache.get(userId);
                 const userName = user ? user.username : userId;
                 
-                // Zmiana rozszerzenia z pcm na ogg
                 const filename = path.join(recordingsDir, `audio_${userName}_${Date.now()}.ogg`);
                 const fileStream = fs.createWriteStream(filename);
 
@@ -88,25 +97,27 @@ client.on('messageCreate', async (message) => {
                     },
                 });
 
-                // Zamiast dekodera PCM, używamy OggLogicalBitstream, 
-                // aby zapisać surowe pakiety Opus prosto do kontenera Ogg.
-                const oggStream = new prism.opus.OggLogicalBitstream({
-                    opusHead: new prism.opus.OpusHead({
-                        channelCount: 2,
-                        sampleRate: 48000,
-                    }),
-                    pageSizeControl: {
-                        maxPackets: 10,
-                    },
-                });
+                // Zgodnie ze wskazówką z obrazka: używamy strumieniowania prosto do formatu Ogg bez dekodowania do PCM.
+                // Wykorzystujemy nasze naprawione, bezpośrednio zaimportowane klasy:
+		// -i pipe:0: czytaj ze standardowego wejścia
+		// -c:a copy: nie re-koduj, po prostu kopiuj strumień (0% straty jakości, minimalne CPU)
+		// -f ogg: format wyjściowy OGG
+		const ffmpegProcess = new prism.FFmpeg({
+		    args: [
+		        '-f', 'opus',
+		        '-i', 'pipe:0',
+		        '-c:a', 'copy',
+		        '-f', 'ogg',
+		        'pipe:1',
+		    ],
+		});
 
-                audioStream.on('error', (err) => {
-                    console.warn(`[AUDIO-OSTRZEŻENIE] Błąd strumienia: ${err.message}`);
-                });
+		audioStream.on('error', (err) => {
+		    console.warn(`[AUDIO-OSTRZEŻENIE] Błąd strumienia: ${err.message}`);
+		});
 
-                // Pipowanie surowego audio -> kontener Ogg -> plik na dysku
-                audioStream.pipe(oggStream).pipe(fileStream);
-
+		// Łączymy: Discord -> FFmpeg (Pakowanie) -> Plik
+		audioStream.pipe(ffmpegProcess).pipe(fileStream);
                 audioStream.on('end', () => {
                     console.log(`[AUDIO] 🟩 Cisza! Zamknięto plik: ${filename}`);
                     activeRecordings.delete(userId);
@@ -120,11 +131,11 @@ client.on('messageCreate', async (message) => {
             currentConnection.destroy();
             currentConnection = null;
             
-            message.reply('Rozłączono z kanału. Zapisywanie nagrań zakończone. 🛑');
-            console.log('Bot opuścił kanał. Zapisywanie audio zostało zakończone (skrypty Pythona wyłączone).');
+            message.reply('Rozłączono z kanału. Zapisywanie nagrań zakończone. 🛑').catch(console.error);
+            console.log('Bot opuścił kanał. Zapisywanie audio zostało zakończone.');
 
         } else {
-            message.channel.send('Bot nie jest połączony z żadnym kanałem.');
+            message.channel.send('Bot nie jest połączony z żadnym kanałem.').catch(console.error);
         }
     }
 });
