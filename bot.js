@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
-const { joinVoiceChannel, EndBehaviorType, VoiceConnectionStatus } = require('@discordjs/voice');
+const { joinVoiceChannel, EndBehaviorType } = require('@discordjs/voice');
 const { BlobServiceClient } = require('@azure/storage-blob');
 const fs = require('fs');
 const path = require('path');
@@ -71,48 +71,34 @@ client.on('messageCreate', async (message) => {
         receiver.speaking.on('start', (userId) => {
             if (activeRecordings.has(userId)) {
                 const existing = activeRecordings.get(userId);
-                if (existing.stopTimeout) {
-                    clearTimeout(existing.stopTimeout);
-                    existing.stopTimeout = null;
-                }
+                if (existing.stopTimeout) clearTimeout(existing.stopTimeout);
                 return;
             }
 
             const user = client.users.cache.get(userId);
             const userName = user ? user.username : userId;
-            const filename = path.join(recordingsDir, `audio_${userName}_${Date.now()}.ogg`);
+            
+            // Format .pcm
+            const filename = path.join(recordingsDir, `audio_${userName}_${Date.now()}.pcm`);
             
             console.log(`[START] 🎙️ Nagrywanie dla: ${userName}`);
 
             const fileStream = fs.createWriteStream(filename);
             
-            // --- KLUCZOWA ZMIANA: Słuchamy 'finish' już TERAZ ---
-            fileStream.on('finish', () => {
-                console.log(`[PLIK] 💾 Zapis na dysku zakończony: ${path.basename(filename)}`);
-                uploadToAzure(filename);
-            });
+            // To zdarzenie wywoła wysyłkę do Azure, gdy zawołamy fileStream.end()
+            fileStream.on('finish', () => uploadToAzure(filename));
 
-            const audioStream = receiver.subscribe(userId, {
-                end: { behavior: EndBehaviorType.Manual }
-            });
+            const audioStream = receiver.subscribe(userId, { end: { behavior: EndBehaviorType.Manual } });
 
-            const ffmpegProcess = new prism.FFmpeg({
-                args: [
-                    '-f', 'opus', '-i', 'pipe:0',
-                    '-c:a', 'copy', '-f', 'ogg', 'pipe:1',
-                ],
-            });
+            const opusDecoder = new prism.opus.Decoder({ rate: 48000, channels: 2, frameSize: 960 });
 
-            audioStream.pipe(ffmpegProcess).pipe(fileStream);
+            audioStream.on('error', (err) => console.error(`[Audio BŁĄD]: ${err.message}`));
+            opusDecoder.on('error', (err) => console.error(`[Decoder BŁĄD]: ${err.message}`));
 
-            activeRecordings.set(userId, {
-                audioStream,
-                ffmpegProcess,
-                fileStream,
-                userName,
-                filename,
-                stopTimeout: null
-            });
+            audioStream.pipe(opusDecoder).pipe(fileStream);
+
+            // ZMIANA: Zapisujemy fileStream w pamięci RAM, żeby móc go potem wyłączyć
+            activeRecordings.set(userId, { audioStream, fileStream, userName, stopTimeout: null });
         });
 
         receiver.speaking.on('end', (userId) => {
@@ -121,28 +107,28 @@ client.on('messageCreate', async (message) => {
 
             rec.stopTimeout = setTimeout(() => {
                 console.log(`[CISZA] 🛑 3s u ${rec.userName} -> Zamykam.`);
-                rec.audioStream.destroy();
-                rec.ffmpegProcess.destroy();
-                rec.fileStream.end();
+                
+                if (rec.audioStream && !rec.audioStream.destroyed) rec.audioStream.destroy();
+                // ZMIANA: Wymuszamy zamknięcie pliku, co natychmiast odpala wysyłkę do Azure!
+                if (rec.fileStream) rec.fileStream.end(); 
+                
                 activeRecordings.delete(userId);
             }, 3000);
         });
     }
 
     if (message.content === '!stop') {
-        console.log(`[KOMENDA] Wykryto !stop. Czyszczenie...`);
         if (currentConnection) {
-            activeRecordings.forEach((rec, userId) => {
-                console.log(`[STOP] Wymuszam koniec dla ${rec.userName}`);
+            activeRecordings.forEach((rec) => {
                 if (rec.stopTimeout) clearTimeout(rec.stopTimeout);
-                rec.audioStream.destroy();
-                rec.ffmpegProcess.destroy();
-                rec.fileStream.end();
+                if (rec.audioStream && !rec.audioStream.destroyed) rec.audioStream.destroy();
+                // ZMIANA: Zamykamy plik również przy wymuszonym stopie
+                if (rec.fileStream) rec.fileStream.end();
             });
             activeRecordings.clear();
             currentConnection.destroy();
             currentConnection = null;
-            message.reply('⏹️ Rozłączono i wysłano pliki.');
+            message.reply('⏹️ Rozłączono i rozpoczęto wysyłkę plików.');
         }
     }
 });
