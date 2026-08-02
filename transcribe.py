@@ -13,7 +13,7 @@ CONTAINER_NAME = "audio-files"
 DOWNLOAD_DIR = "downloaded_recordings"
 
 print("Ładowanie modelu Whisper (to potrwa krótką chwilę)...")
-model = whisper.load_model("small")
+model = whisper.load_model("medium")
 
 def process_session():
     if not AZURE_CONNECTION_STRING:

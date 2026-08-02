@@ -1,3 +1,5 @@
 .env
 .venv/
 downloaded_recordings/
+transcript.txt
+notatki*
