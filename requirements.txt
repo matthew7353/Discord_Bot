@@ -1,6 +1,4 @@
 openai-whisper
 azure-storage-blob
-azure-identity
-azure-mgmt-compute
 requests
 python-dotenv

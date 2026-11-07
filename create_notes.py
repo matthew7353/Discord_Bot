@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
 """
 Generuje notatki z sesji D&D na podstawie tekstu transkryptu, przez lokalny
-model LLM na Ollamie.
+model LLM na Ollamie (serwer `ollama serve` uruchamiany w tym samym kontenerze
+przez entrypoint.sh).
 
 Można importować (generate_notes) z orchestrator.py, albo uruchomić samodzielnie:
     python create_notes.py <plik_z_transkryptem.txt> [plik_wyjsciowy.md]
+
+Zmienne środowiskowe:
+  OLLAMA_HOST_URL     - adres serwera Ollamy (domyślnie http://127.0.0.1:11434)
+  OLLAMA_MODEL_NAME   - model, np. gemma4:31b albo gemma4:31b-it-q8_0
+  OLLAMA_NUM_CTX      - okno kontekstu w tokenach (domyślnie 16384)
+  OLLAMA_TEMPERATURE  - temperatura (domyślnie 0.3 - mniej "kreatywności")
+  OLLAMA_THINK        - "true"/"false": tryb rozumowania dla modeli, które go mają
 """
 
 import requests
@@ -13,10 +21,18 @@ import re
 import time
 import os
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
-MODEL_NAME = os.getenv("OLLAMA_MODEL_NAME", "gemma4:31b-cloud")
+OLLAMA_HOST_URL = os.getenv("OLLAMA_HOST_URL", "http://127.0.0.1:11434").rstrip("/")
+OLLAMA_URL = f"{OLLAMA_HOST_URL}/api/generate"
+MODEL_NAME = os.getenv("OLLAMA_MODEL_NAME", "gemma4:31b")
 
-TIMEOUT_SEKUNDY = 1800
+# Domyślny kontekst Ollamy jest mały (kilka tys. tokenów) i za długi prompt
+# jest po cichu ucinany - model widzi wtedy tylko część fragmentu i zaczyna
+# zmyślać. 16k tokenów mieści fragment 12k znaków + prompt systemowy + odpowiedź.
+NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "16384"))
+TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0.3"))
+THINK = os.getenv("OLLAMA_THINK")
+
+TIMEOUT_SEKUNDY = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "3600"))
 LICZBA_PROB = 3
 MAX_ZNAKOW_FRAGMENT = 12000
 
@@ -113,19 +129,57 @@ def podziel_na_fragmenty(tekst: str, max_znakow: int = MAX_ZNAKOW_FRAGMENT) -> l
     return fragmenty
 
 
+def ensure_ollama_ready(wait_seconds: int = 120):
+    """Czeka aż lokalny serwer Ollamy wstanie i upewnia się, że model jest pobrany
+    (jeśli nie był wbudowany w obraz, pobiera go teraz - to może potrwać kilka minut)."""
+    deadline = time.time() + wait_seconds
+    while True:
+        try:
+            tags = requests.get(f"{OLLAMA_HOST_URL}/api/tags", timeout=5)
+            tags.raise_for_status()
+            break
+        except requests.exceptions.RequestException:
+            if time.time() > deadline:
+                raise RuntimeError(f"Serwer Ollamy pod {OLLAMA_HOST_URL} nie odpowiada.")
+            time.sleep(2)
+
+    nazwy = {m.get("name") for m in tags.json().get("models", [])}
+    if MODEL_NAME in nazwy or f"{MODEL_NAME}:latest" in nazwy:
+        print(f"Model {MODEL_NAME} jest już dostępny lokalnie.")
+        return
+
+    print(f"Pobieram model {MODEL_NAME} do Ollamy (nie był wbudowany w obraz)...")
+    r = requests.post(f"{OLLAMA_HOST_URL}/api/pull",
+                      json={"model": MODEL_NAME, "stream": False}, timeout=3 * 3600)
+    r.raise_for_status()
+    print(f"Model {MODEL_NAME} pobrany.")
+
+
 def zapytaj_ollame(prompt: str, system: str = "") -> str:
-    payload = {"model": MODEL_NAME, "prompt": prompt, "system": system, "stream": False}
+    payload = {
+        "model": MODEL_NAME,
+        "prompt": prompt,
+        "system": system,
+        "stream": False,
+        "options": {"num_ctx": NUM_CTX, "temperature": TEMPERATURE},
+    }
+    if THINK is not None:
+        payload["think"] = THINK.lower() == "true"
 
     for proba in range(1, LICZBA_PROB + 1):
         try:
             odpowiedz = requests.post(OLLAMA_URL, json=payload, timeout=TIMEOUT_SEKUNDY)
             odpowiedz.raise_for_status()
-            return odpowiedz.json().get("response", "").strip()
+            dane = odpowiedz.json()
+            if dane.get("prompt_eval_count", 0) >= NUM_CTX:
+                print(f"    [uwaga] Prompt ({dane['prompt_eval_count']} tokenów) wypełnił cały "
+                      f"kontekst {NUM_CTX} - zwiększ OLLAMA_NUM_CTX.")
+            return dane.get("response", "").strip()
         except requests.exceptions.ReadTimeout:
             print(f"    [uwaga] Timeout po {TIMEOUT_SEKUNDY}s (próba {proba}/{LICZBA_PROB}).")
         except requests.exceptions.ConnectionError:
-            print(f"    [uwaga] Nie udało się połączyć z Ollamą (próba {proba}/{LICZBA_PROB}). "
-                  f"Sprawdź czy serwer działa: `systemctl status ollama`.")
+            print(f"    [uwaga] Nie udało się połączyć z Ollamą pod {OLLAMA_HOST_URL} "
+                  f"(próba {proba}/{LICZBA_PROB}).")
         except requests.exceptions.HTTPError as e:
             print(f"    [uwaga] Błąd HTTP od Ollamy (próba {proba}/{LICZBA_PROB}): {e}")
 
@@ -189,6 +243,7 @@ if __name__ == "__main__":
     with open(transcript_path, "r", encoding="utf-8") as f:
         transcript_text = f.read()
 
+    ensure_ollama_ready()
     notes = generate_notes(transcript_text)
 
     with open(output_path, "w", encoding="utf-8") as f:

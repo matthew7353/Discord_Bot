@@ -3,8 +3,14 @@ Transkrypcja pojedynczej sesji D&D pobranej z Azure Blob Storage.
 
 Ten moduł jest importowany przez orchestrator.py, ale można go też uruchomić
 samodzielnie: python transcribe.py <session_id>
+
+Zmienne środowiskowe:
+  WHISPER_MODEL      - rozmiar modelu (domyślnie large-v3)
+  WHISPER_CACHE_DIR  - gdzie leżą wagi modelu (w obrazie: /models/whisper)
+  WHISPER_DEVICE     - "cuda" / "cpu" (domyślnie: cuda jeśli dostępna)
 """
 
+import gc
 import os
 import sys
 import warnings
@@ -12,20 +18,53 @@ import subprocess
 
 warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")
 
-CONTAINER_NAME = "audio-files"
-DOWNLOAD_DIR = "downloaded_recordings"
+CONTAINER_NAME = os.getenv("AZURE_STORAGE_CONTAINER", "audio-files")
+DOWNLOAD_DIR = os.getenv("DOWNLOAD_DIR", "downloaded_recordings")
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large-v3")
+WHISPER_CACHE_DIR = os.getenv("WHISPER_CACHE_DIR") or None
 
 _model = None
+_device = None
 
 
-def load_model(model_size: str = "medium"):
+def _pick_device():
+    import torch
+    wanted = os.getenv("WHISPER_DEVICE")
+    if wanted:
+        return wanted
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
+def load_model(model_size: str = WHISPER_MODEL):
     """Ładuje model Whisper raz i trzyma w pamięci (wywołaj raz na cały proces orchestratora)."""
-    global _model
+    global _model, _device
     if _model is None:
         import whisper
-        print(f"Ładowanie modelu Whisper ({model_size})...")
-        _model = whisper.load_model(model_size)
+        _device = _pick_device()
+        print(f"Ładowanie modelu Whisper ({model_size}) na {_device}...")
+        _model = whisper.load_model(model_size, device=_device, download_root=WHISPER_CACHE_DIR)
     return _model
+
+
+def unload_model():
+    """Zwalnia Whispera z pamięci GPU, żeby zrobić miejsce dla LLM w Ollamie."""
+    global _model
+    if _model is None:
+        return
+    import torch
+    _model = None
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    print("Whisper zwolniony z pamięci.")
+
+
+def _download_blob(container_client, blob_name, local_path):
+    """Pobiera blob strumieniowo prosto do pliku (bez wczytywania całości do RAM)."""
+    tmp_path = local_path + ".part"
+    with open(tmp_path, "wb") as f:
+        container_client.get_blob_client(blob_name).download_blob(max_concurrency=4).readinto(f)
+    os.replace(tmp_path, local_path)
 
 
 def transcribe_session(container_client, session_id: str, model=None) -> str:
@@ -36,6 +75,7 @@ def transcribe_session(container_client, session_id: str, model=None) -> str:
     """
     if model is None:
         model = load_model()
+    use_fp16 = (_device == "cuda")
 
     session_dir = os.path.join(DOWNLOAD_DIR, session_id)
     os.makedirs(session_dir, exist_ok=True)
@@ -52,13 +92,6 @@ def transcribe_session(container_client, session_id: str, model=None) -> str:
 
     for blob in blobs:
         filename = os.path.basename(blob.name)
-        local_path = os.path.join(session_dir, filename)
-
-        if not os.path.exists(local_path):
-            print(f"Pobieranie: {blob.name}")
-            blob_data = container_client.get_blob_client(blob).download_blob()
-            with open(local_path, "wb") as f:
-                f.write(blob_data.readall())
 
         parts = filename.split('_')
         if len(parts) < 3:
@@ -69,26 +102,34 @@ def transcribe_session(container_client, session_id: str, model=None) -> str:
         except ValueError:
             continue
 
-        if not os.path.exists(local_path) or os.path.getsize(local_path) < 4096:
+        if (blob.size or 0) < 4096:
             print(f"⚠️ Pomijam {filename} (plik jest pusty lub zbyt mały)")
             continue
 
-        wav_path = local_path.replace(".pcm", ".wav")
+        local_path = os.path.join(session_dir, filename)
+        wav_path = local_path[:-len(".pcm")] + ".wav"
 
         try:
             print(f"Przetwarzam: {filename}...")
+            _download_blob(container_client, blob.name, local_path)
+
+            # 48 kHz stereo z Discorda -> 16 kHz mono (tego i tak używa Whisper,
+            # a plik jest 6x mniejszy).
             subprocess.run([
-                'ffmpeg', '-y', '-f', 's16le', '-ar', '48000', '-ac', '2',
-                '-i', local_path, wav_path
-            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                'ffmpeg', '-y', '-loglevel', 'error',
+                '-f', 's16le', '-ar', '48000', '-ac', '2', '-i', local_path,
+                '-ar', '16000', '-ac', '1', wav_path
+            ], check=True)
 
-            result = model.transcribe(wav_path, language="pl", fp16=False)
-
-            if os.path.exists(wav_path):
-                os.remove(wav_path)
+            result = model.transcribe(wav_path, language="pl", fp16=use_fp16)
         except Exception as e:
             print(f"❌ Błąd przy pliku {filename}, pomijam. Szczegóły: {e}")
             continue
+        finally:
+            # Sprzątamy od razu - dysk repliki jest mały i tymczasowy.
+            for p in (local_path, wav_path):
+                if os.path.exists(p):
+                    os.remove(p)
 
         for segment in result['segments']:
             text = segment['text'].strip()

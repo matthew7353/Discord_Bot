@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+venv/
+__pycache__/
+*.pyc
+downloaded_recordings/
+transcript*.txt
+notatki*
+*.md
+!README.md
