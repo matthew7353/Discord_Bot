@@ -1,5 +1,6 @@
 .env
-.venv/
+venv/
 downloaded_recordings/
 transcript.txt
 notatki*
+__pycache__/

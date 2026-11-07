@@ -1,46 +1,25 @@
 #!/usr/bin/env python3
 """
-Skrypt generuje notatki z sesji D&D na podstawie transkryptu (txt, np. z Whisper AI)
-i wysyła go do lokalnego modelu LLM postawionego na Ollamie.
+Generuje notatki z sesji D&D na podstawie tekstu transkryptu, przez lokalny
+model LLM na Ollamie.
 
-Wymagania:
-    pip install requests
-
-Użycie:
-    python notatki_z_sesji.py
+Można importować (generate_notes) z orchestrator.py, albo uruchomić samodzielnie:
+    python create_notes.py <plik_z_transkryptem.txt> [plik_wyjsciowy.md]
 """
 
 import requests
 import sys
 import re
 import time
-import json
 import os
 
-# ============ KONFIGURACJA - UZUPEŁNIJ ============
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+MODEL_NAME = os.getenv("OLLAMA_MODEL_NAME", "gemma4:31b-cloud")
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "gemma4:31b-cloud"          # <-- WPISZ TU nazwę modelu, np. "llama3.1:70b"
-TRANSCRIPT_FILE = "transcript.txt"     # <-- WPISZ TU nazwę pliku txt z transkrypcją, np. "sesja_2024_07_20.txt"
-OUTPUT_FILE = "notatki_z_sesji_cloud.md"
-
-# Ile sekund maksymalnie czekać na odpowiedź modelu dla JEDNEGO fragmentu.
-# Na wolnym CPU długi prompt potrafi liczyć się bardzo długo - lepiej ustawić
-# z dużym zapasem niż dostać timeout w połowie pracy.
-TIMEOUT_SEKUNDY = 1800  # 30 minut
-
-# Ile razy ponowić próbę dla fragmentu, jeśli zapytanie się nie powiedzie (timeout/błąd sieci).
+TIMEOUT_SEKUNDY = 1800
 LICZBA_PROB = 3
+MAX_ZNAKOW_FRAGMENT = 12000
 
-# Plik, w którym zapisywany jest postęp - jeśli skrypt padnie w trakcie,
-# przy ponownym uruchomieniu wznowi pracę od miejsca, w którym skończył.
-PLIK_POSTEPU = "postep_streszczen.json"
-
-# ====================================================
-
-# Mapowanie nicków z Discorda na postacie/role w grze.
-# Whisper czasem błędnie rozpoznaje nicki (literówki), więc dodano
-# kilka wariantów pisowni - w razie potrzeby dopisz kolejne.
 NICK_MAP = {
     "artisdead3": "Frum Runegaser",
     "hatandhistea": "Grimmar",
@@ -49,7 +28,6 @@ NICK_MAP = {
     "sjugetti": "Mistrz Gry (MG)",
 }
 
-# Kontekst wspólny dla obu promptów - kto jest kim w transkrypcie.
 KONTEKST_POSTACI = """W transkrypcie występują następujące osoby i grane przez nie postacie:
 - Frum Runegaser (gracz)
 - Grimmar (gracz)
@@ -57,8 +35,6 @@ KONTEKST_POSTACI = """W transkrypcie występują następujące osoby i grane prz
 - Kalys (gracz)
 - Mistrz Gry (prowadzący sesję)"""
 
-# Prompt systemowy używany PRZY KAŻDYM FRAGMENCIE transkryptu.
-# Zadanie: wyciągnąć fakty i wydarzenia z surowego, częściowo błędnego tekstu.
 SYSTEM_PROMPT_FRAGMENT = f"""Jesteś asystentem, który sporządza robocze notatki z fragmentu sesji RPG \
 (Dungeons & Dragons) na podstawie transkrypcji rozmowy głosowej z Discorda, wygenerowanej automatycznie \
 przez Whisper AI.
@@ -82,8 +58,6 @@ akapitów prozy (NIE list punktowanych, NIE nagłówków). Uwzględnij:
 
 To jest tekst roboczy do dalszej obróbki, nie finalne notatki - ma być zwięzły i konkretny, bez formatowania."""
 
-# Prompt systemowy używany RAZ, przy składaniu wszystkich streszczeń fragmentów w finalne notatki.
-# Zadanie: synteza i redakcja spójnego dokumentu, a nie wyciąganie faktów z surowego tekstu.
 SYSTEM_PROMPT_FINALNE = f"""Jesteś redaktorem, który na podstawie chronologicznych, roboczych streszczeń \
 fragmentów jednej sesji RPG (Dungeons & Dragons) przygotowuje finalne, czyste notatki z całej sesji.
 
@@ -113,31 +87,13 @@ Lista punktowana tego, dokąd drużyna zmierza lub co planuje zrobić dalej, je�
 Nie twórz żadnych innych sekcji ani nie powtarzaj tych samych informacji w kilku miejscach."""
 
 
-def wczytaj_transkrypt(sciezka: str) -> str:
-    try:
-        with open(sciezka, "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        print(f"Błąd: nie znaleziono pliku '{sciezka}' w bieżącym folderze.")
-        sys.exit(1)
-    except UnicodeDecodeError:
-        # awaryjnie próbujemy innego kodowania
-        with open(sciezka, "r", encoding="cp1250") as f:
-            return f.read()
-
-
 def podmien_nicki(tekst: str) -> str:
-    """Zamienia nicki z Discorda na imiona postaci, uwzględniając różną wielkość liter."""
     for nick, postac in NICK_MAP.items():
         tekst = re.sub(re.escape(nick), postac, tekst, flags=re.IGNORECASE)
     return tekst
 
 
-def podziel_na_fragmenty(tekst: str, max_znakow: int = 12000) -> list[str]:
-    """
-    Dzieli długi transkrypt na fragmenty, żeby zmieścić się w kontekście modelu.
-    Dzieli po liniach, żeby nie przecinać wypowiedzi w połowie.
-    """
+def podziel_na_fragmenty(tekst: str, max_znakow: int = MAX_ZNAKOW_FRAGMENT) -> list[str]:
     linie = tekst.split("\n")
     fragmenty = []
     biezacy = []
@@ -158,19 +114,13 @@ def podziel_na_fragmenty(tekst: str, max_znakow: int = 12000) -> list[str]:
 
 
 def zapytaj_ollame(prompt: str, system: str = "") -> str:
-    payload = {
-        "model": MODEL_NAME,
-        "prompt": prompt,
-        "system": system,
-        "stream": False,
-    }
+    payload = {"model": MODEL_NAME, "prompt": prompt, "system": system, "stream": False}
 
     for proba in range(1, LICZBA_PROB + 1):
         try:
             odpowiedz = requests.post(OLLAMA_URL, json=payload, timeout=TIMEOUT_SEKUNDY)
             odpowiedz.raise_for_status()
             return odpowiedz.json().get("response", "").strip()
-
         except requests.exceptions.ReadTimeout:
             print(f"    [uwaga] Timeout po {TIMEOUT_SEKUNDY}s (próba {proba}/{LICZBA_PROB}).")
         except requests.exceptions.ConnectionError:
@@ -184,22 +134,7 @@ def zapytaj_ollame(prompt: str, system: str = "") -> str:
             print(f"    Czekam {czekaj}s i próbuję ponownie...")
             time.sleep(czekaj)
 
-    print("Błąd: nie udało się uzyskać odpowiedzi od Ollamy po kilku próbach. Przerywam.")
-    print("Dotychczasowy postęp jest zapisany w pliku "
-          f"'{PLIK_POSTEPU}' - uruchom skrypt ponownie, żeby wznowić od tego miejsca.")
-    sys.exit(1)
-
-
-def wczytaj_postep() -> list[str]:
-    if os.path.exists(PLIK_POSTEPU):
-        with open(PLIK_POSTEPU, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
-
-
-def zapisz_postep(streszczenia: list[str]) -> None:
-    with open(PLIK_POSTEPU, "w", encoding="utf-8") as f:
-        json.dump(streszczenia, f, ensure_ascii=False, indent=2)
+    raise RuntimeError("Nie udało się uzyskać odpowiedzi od Ollamy po kilku próbach.")
 
 
 def podsumuj_fragment(fragment: str, numer: int, ile_lacznie: int) -> str:
@@ -228,43 +163,35 @@ def stworz_finalne_notatki(streszczenia: list[str]) -> str:
     return zapytaj_ollame(prompt, system=SYSTEM_PROMPT_FINALNE)
 
 
-def main():
-    if not MODEL_NAME:
-        print("Błąd: uzupełnij zmienną MODEL_NAME na początku skryptu (nazwa modelu z `ollama list`).")
-        sys.exit(1)
-    if not TRANSCRIPT_FILE:
-        print("Błąd: uzupełnij zmienną TRANSCRIPT_FILE na początku skryptu (nazwa pliku txt z transkryptem).")
-        sys.exit(1)
-
-    print(f"Wczytuję transkrypt z pliku '{TRANSCRIPT_FILE}'...")
-    surowy_tekst = wczytaj_transkrypt(TRANSCRIPT_FILE)
-    tekst = podmien_nicki(surowy_tekst)
-
+def generate_notes(transcript_text: str, progress_prefix: str = "") -> str:
+    """Bierze surowy tekst transkryptu i zwraca finalne notatki w Markdown."""
+    tekst = podmien_nicki(transcript_text)
     fragmenty = podziel_na_fragmenty(tekst)
-    print(f"Transkrypt podzielono na {len(fragmenty)} fragment(ów).")
+    print(f"{progress_prefix}Transkrypt podzielono na {len(fragmenty)} fragment(ów).")
 
-    streszczenia = wczytaj_postep()
-    if streszczenia:
-        print(f"Znaleziono zapisany postęp: {len(streszczenia)}/{len(fragmenty)} fragmentów już przetworzonych. "
-              f"Wznawiam od fragmentu {len(streszczenia) + 1}.")
-
-    for i in range(len(streszczenia) + 1, len(fragmenty) + 1):
-        print(f"  -> przetwarzanie fragmentu {i}/{len(fragmenty)}...")
-        fragment = fragmenty[i - 1]
+    streszczenia = []
+    for i, fragment in enumerate(fragmenty, start=1):
+        print(f"{progress_prefix}  -> przetwarzanie fragmentu {i}/{len(fragmenty)}...")
         streszczenia.append(podsumuj_fragment(fragment, i, len(fragmenty)))
-        zapisz_postep(streszczenia)
 
-    print("Łączenie streszczeń w finalne notatki...")
-    finalne_notatki = stworz_finalne_notatki(streszczenia)
-
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        f.write(finalne_notatki)
-
-    if os.path.exists(PLIK_POSTEPU):
-        os.remove(PLIK_POSTEPU)
-
-    print(f"\nGotowe! Notatki zapisano do pliku '{OUTPUT_FILE}'.")
+    print(f"{progress_prefix}Łączenie streszczeń w finalne notatki...")
+    return stworz_finalne_notatki(streszczenia)
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        print("Użycie: python create_notes.py <plik_z_transkryptem.txt> [plik_wyjsciowy.md]")
+        sys.exit(1)
+
+    transcript_path = sys.argv[1]
+    output_path = sys.argv[2] if len(sys.argv) > 2 else "notatki_z_sesji.md"
+
+    with open(transcript_path, "r", encoding="utf-8") as f:
+        transcript_text = f.read()
+
+    notes = generate_notes(transcript_text)
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(notes)
+
+    print(f"\nGotowe! Notatki zapisano do pliku '{output_path}'.")
