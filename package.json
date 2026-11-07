@@ -14,6 +14,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@azure/arm-compute": "^24.1.0",
+    "@azure/identity": "^4.13.1",
     "@azure/storage-blob": "^12.31.0",
     "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.2",
