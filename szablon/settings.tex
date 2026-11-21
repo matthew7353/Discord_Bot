@@ -1,0 +1,234 @@
+%%% Copyright (C) [2026] [PWr * WIT * Wydziałowa Komisja d/s Jakości Kształcenia]
+%%% Zmodyfikowany i zoptymalizowany (2026)
+%%% ---------------------------------------------------------------------------
+
+%%% KONFIGURACJA EKSTRAKCJI TEKSTU (PDF COPY-PASTE)
+\input{glyphtounicode} 
+\pdfgentounicode=1     % Wymagane przez JSA (Jednolity System Antyplagiatowy)
+
+%%% 1. KODOWANIE I JĘZYK
+\RequirePackage[T1]{fontenc}
+%\RequirePackage[utf8]{inputenc} % Opcjonalne w nowych systemach (domyślne)
+\RequirePackage[english,polish]{babel} % Kolejność eng -> pl
+\RequirePackage{csquotes} % Wymagane przez biblatex
+
+%%% 2. MATEMATYKA I CZCIONKI
+\RequirePackage{amsmath}
+\RequirePackage{mathtools}
+\RequirePackage{amsthm}
+
+\RequirePackage{newtxtext} 
+\RequirePackage{newtxmath}
+\RequirePackage{microtype} % Poprawia optyczny wygląd tekstu
+
+%%% 3. GEOMETRIA I GRAFIKA
+\RequirePackage{geometry}
+\geometry{
+  a4paper,
+  top=25mm, bottom=25mm,
+  inner=25mm, outer=25mm,
+  bindingoffset=5mm
+}
+\RequirePackage{graphicx}
+\RequirePackage{xcolor}
+\RequirePackage{float} % Dla opcji pozycjonowania [H]
+
+%%% 4. NARZĘDZIA POMOCNICZE
+\RequirePackage{etoolbox}
+
+%%% 5. FORMATOWANIE TEKSTU I NAGŁÓWKÓW
+\RequirePackage{titlesec}
+\RequirePackage{caption}
+\RequirePackage{subcaption}
+\RequirePackage{setspace}
+
+\setlength{\parindent}{0.7cm}
+\setstretch{1.15} 
+
+% Formatowanie nagłówków (Rozdział, Podrozdział)
+\titleformat{\chapter}[display]
+  {\bfseries\Large}
+  {\chaptertitlename\ \thechapter}{0.5ex}   
+  {\huge}
+\titlespacing*{\chapter}{0pt}{-20pt}{20pt}
+
+\titleformat{\section}{\bfseries\Large}{\thesection.}{1em}{}
+\titlespacing*{\section}{0pt}{2.5ex plus 1ex minus .2ex}{1.3ex plus .2ex}
+
+\titleformat{\subsection}{\bfseries\large}{\thesubsection.}{1em}{}
+\titlespacing*{\subsection}{0pt}{2.25ex plus 1ex minus .2ex}{1.0ex plus .2ex}
+
+% Numeracja ciągła wewnątrz rozdziałów
+\counterwithin{figure}{chapter}
+\counterwithin{table}{chapter}
+\numberwithin{equation}{chapter}
+
+% Podpisy (Captions) - pogrubione etykiety
+\captionsetup{font=small, labelfont=bf, labelsep=period}
+
+%%% 6. ALGORYTMY I LISTINGI KODU
+\RequirePackage{algorithm}
+\RequirePackage{algpseudocode}
+\algrenewcommand\algorithmiccomment[1]{\hfill\(\triangleright\) #1}
+\floatname{algorithm}{Algorytm} 
+
+\RequirePackage{listings}
+\definecolor{codebg}{RGB}{250,250,250}
+\definecolor{codekw}{RGB}{0,64,160}
+\definecolor{codestr}{RGB}{0,128,0}
+\definecolor{codecmt}{RGB}{128,128,128}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  keywordstyle=\bfseries\color{codekw},
+  stringstyle=\color{codestr},
+  commentstyle=\itshape\color{codecmt},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  stepnumber=1,
+  numbersep=8pt,
+  tabsize=2,
+  showstringspaces=false,
+  breaklines=true,
+  frame=lines,
+  captionpos=b,
+  % Mapowanie polskich znaków dla listings (niezbędne przy tym pakiecie)
+  literate={ą}{{\k{a}}}1 {ć}{{\'c}}1 {ę}{{\k{e}}}1 {ł}{{\l{}}}1 {ń}{{\'n}}1 {ó}{{\'o}}1 {ś}{{\'s}}1 {ż}{{\.z}}1 {ź}{{\'z}}1
+           {Ą}{{\k{A}}}1 {Ć}{{\'C}}1 {Ę}{{\k{E}}}1 {Ł}{{\L{}}}1 {Ń}{{\'N}}1 {Ó}{{\'O}}1 {Ś}{{\'S}}1 {Ż}{{\.Z}}1 {Ź}{{\'Z}}1
+}
+\renewcommand{\lstlistingname}{Listing}
+\renewcommand{\lstlistlistingname}{Spis listingów}
+
+% Styl Haskell 
+\definecolor{darkgreen}{rgb}{0,0.5,0}
+\lstdefinestyle{haskellStyle}{
+    language=Haskell,
+    commentstyle=\color{darkgreen},
+    keywordstyle=\color{blue}\bfseries,
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    stringstyle=\color{red}
+}
+
+%%% 7. HYPERREF I CLEVEREF (Musi być na końcu)
+\RequirePackage[
+    pdfusetitle,
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=blue,
+    urlcolor=blue,
+    bookmarksnumbered=true
+]{hyperref}
+
+\RequirePackage[nameinlink]{cleveref}
+
+% Tłumaczenia dla cleveref
+\crefname{figure}{Rys.}{Rys.}
+\Crefname{figure}{Rysunek}{Rysunki}
+\crefname{table}{Tab.}{Tab.}
+\Crefname{table}{Tabela}{Tabele}
+\crefname{equation}{równ.}{równ.}
+\Crefname{equation}{Równanie}{Równania}
+\crefname{listing}{listing}{Listingi}
+\crefname{algorithm}{algorytm}{algorytmy}
+\Crefname{algorithm}{Algorytm}{Algorytmy}
+
+%%%%%%%%%%%
+%% MAKRA %%
+%%%%%%%%%%%
+
+% Definicja rodzaju pracy 
+\newcommand{\stRodzajPracy}{%
+  \ifnum\stCzyMgr=1 MAGISTERSKA\else INŻYNIERSKA\fi
+}
+
+\newcommand{\StronaTytulowa}{
+  \pagenumbering{roman}
+  \sffamily
+  \begin{titlepage}  
+    \newgeometry{top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm}
+    
+    \begin{center}
+      {\huge\bfseries Politechnika Wrocławska \par}
+      \vspace{0.4cm}
+      {\Large Wydział Informatyki i Telekomunikacji \par}
+    \end{center}
+    \par\noindent\rule{\textwidth}{1pt}\par 
+    \vspace{0.5cm} 
+    
+    {\large
+    \begin{tabular}{@{}ll}
+      Kierunek: & \textbf{\stKierunek\ (\stKodKierunku)} \\
+      \ifdefempty{\stSpecjalnosc}{}{Specjalność: & \textbf{\stSpecjalnosc\ (\stKodSpecjalnosci)}}
+    \end{tabular}
+    }
+    
+    \vspace*{\fill}
+    
+    \begin{center}
+      {\huge\bfseries PRACA DYPLOMOWA \par}
+      \vspace{0.3cm}    
+      {\huge \stRodzajPracy \par}
+      \vspace{2.0cm}
+      {\Large \bfseries \stTytulPL \par} 
+      \vspace{1cm}
+      {\Large \stAutor \par}
+      \vspace{2cm}
+      {\large Opiekun pracy:\par \textbf{\stOpiekun} \par}
+    \end{center}
+    
+    \vspace*{\fill}
+    
+    {\raggedright
+      \small Słowa kluczowe: \textit{\stSlowaKluczowe}\par
+      \vspace{0.5em}
+      \par\noindent\rule{\textwidth}{1pt}\par 
+    }
+    
+    \begin{center}
+      \Large Wrocław \stRok
+    \end{center}
+  
+    \restoregeometry
+  \end{titlepage}
+  \normalfont
+  \pagestyle{empty}
+}
+
+\newenvironment{abstracts}{}{\selectlanguage{polish}\clearpage}
+
+\newcommand{\AbstractPL}{
+  \begin{center}{\Large\bfseries Streszczenie \par}\end{center}\vspace{0.5em}
+}
+
+\newcommand{\AbstractENG}{
+  \selectlanguage{english}
+  \begin{center}{\Large\bfseries Abstract \par}\end{center}\vspace{0.5em}
+}
+
+\newcommand{\SpisTresci}{
+  \clearpage
+  \addtocontents{toc}{\protect\thispagestyle{empty}} 
+  \pagestyle{empty} 
+  \tableofcontents
+  \clearpage
+  \pagestyle{empty}
+}
+
+%% WSTAWIENIE METADANYCH DO PLIKU PDF
+\newcommand{\SetMetaData}{%
+  \AtBeginDocument{%  
+    \hypersetup{%
+      pdfinfo = {%
+        Title    = {\stTytulPL},
+        Author   = {\stAutor},
+        Subject  = {Praca dyplomowa \stRodzajPracy},  
+        Keywords = {\stSlowaKluczowe}, 
+        ModDate  = {\pdfcreationdate}, 
+        Creator  = {pdftex}
+      }
+    }
+  }
+}
+%%% KONIEC PLIKU SETTINGS.TEX

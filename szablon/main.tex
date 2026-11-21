@@ -1,0 +1,105 @@
+%% UWAGI
+%% - wszystkie pliki kodujemy w utf8
+%% - stosujemy biber'a do obsługi bibliografii; nie stosujemy bibtex'a;
+%%   Overleaf automatycznie wykrywa biber'a; w innych środowiskach być może
+%%   będziesz musiał ustawić go ręcznie
+%% - proponujemy pakiet acro do obsługi synonimów; jeśli nie widzisz potrzeby korzystania z synonimów,
+%%   to zakomentuj dwie linijki w tym pliku
+
+\documentclass[12pt, a4paper, twoside, titlepage]{report}
+
+\input{settings} % Plik z najważnieszymi ustawieniami i makrami
+
+%% TUTAJ WPISZ DANE SWOJEJ PRACY 
+
+\newcommand{\stKierunek}{Informatyka Algorytmiczna}
+\newcommand{\stKodKierunku}{INA}
+\newcommand{\stSpecjalnosc}{Informatyka po angielsku} %% zostaw pusty wpis jak nie ma specjalności
+\newcommand{\stKodSpecjalnosci}{IAG} %% kody kierunków i specjalności znajdziesz na stronach WIT 
+\newcommand{\stCzyMgr}{1} % 1 = Magisterska, 0 = Inżynierska
+\newcommand{\stTytulPL}{Szkice danych dla algorytmów strumieniowych}
+\newcommand{\stTytulAng}{Data Sketches for Streaming Algorithms}
+\newcommand{\stAutor}{Anna Adamowicz}
+\newcommand{\stOpiekun}{prof. dr hab. Krzysztof Kowalski}
+\newcommand{\stSlowaKluczowe}{strumienie danych, Big Data, zliczanie elementów, rozkład jednostajny}
+\newcommand{\stRok}{2026}  % rok złożenia pracy
+
+\SetMetaData % USTAWIENIE MATEDANYCH DLA pliku PDF
+
+%% WŁASNE SKRÓTY
+\newcommand{\IFF}{\leftrightarrow}
+\newcommand{\NN}{\mathbb{N}} % liczby naturalne
+\newcommand{\ZZ}{\mathbb{Z}} % liczby całkowite
+\newcommand{\QQ}{\mathbb{Q}} % liczby wymierne
+\newcommand{\RR}{\mathbb{R}} % liczby rzeczywiste
+
+% Korzystamy z pakietów amsmath oraz amsthm
+\newtheorem{theorem}{Twierdzenie}[chapter]
+\newtheorem{lemma}{Lemat}[chapter]
+\newtheorem{corollary}{Wniosek}[chapter]
+\newtheorem{definition}{Definicja}[chapter]
+
+% OBSŁUGA BIBLIOGRAFII
+% STOSUJEMY biblatex ORAZ progam biber do kompilacji plików *.bib
+\RequirePackage[
+    backend=biber,
+    style=numeric,
+    sorting=none,     % Sortowanie wg kolejności występowania
+    urldate=iso,      % Daty URL w formacie ISO
+    seconds=true      % Pokaż sekundy w datach dostępu (opcjonalnie)
+]{biblatex}
+% To jest przykład zastosowania standardowego formatowania LNCS
+% \usepackage[backend=biber,style=lncs]{biblatex} % styl LNCS globalnie
+
+% Dodanie pliku z bibliografią
+% TU WSTAW NAZWĘ SWOJEGO PLIKU
+\addbibresource{bibliography.bib}
+
+%% AKRONIMY (skróty;synonimy)
+\input{acronyms}   % Zakomentuj tę linię, jeśli nie chcesz stosować synonimów  
+
+%% TU ZACZYNA SIĘ DOKUMENT
+
+\begin{document}
+
+%% NIE RUSZAJ NASTĘPNYCH TRZECH LINIJEK %%
+\StronaTytulowa
+\include{abstract} % plik abstrakt.txt edytujesz samodzielnie 
+\SpisTresci
+
+%%% Tutaj wyświetlamy listę akronimów
+%%  jako parametr (template) możesz wybrać: lof, toc, description
+%%%  
+\ShowAcronyms{lof} %% Zakomentuj tę linię jeśli nie chcesz używać synonimów
+
+\pagenumbering{arabic}  %% NIE RUSZAJ TEGO
+
+%% TU JEST MIEJSCE NA DOŁĄCZENIE TWOICH ROZDZIAŁÓW
+\include{chapters/wstep}
+%% \include{chapters/Rodzial01}
+%% \include{chapters/Rodzial02}
+%% ...
+%% \include{chapters/RodzialXX}
+\include{chapters/info} %% Tu jest kilka przykładów
+
+%% TU WYWOŁUJEMY BIBLIOGRAFIĘ
+%% ZRÓDŁO ZOSTAŁO USTAWIONE POLECENIEM \addbibresource
+%% W NAGŁÓWKU STRONY
+%\printbibliography[heading=bibintoc, title={Spis literatury}]
+\printbibliography[title={Spis literatury}]
+%% TU ZACZYNAJĄ SIĘ ZAŁĄCZNIKI
+\appendix
+%% \include{Dodatek01}
+%% ...
+%% \include{DodatekYY}
+
+
+%% --- Spisy ---
+%% odkomentuj potrzebne spisy 
+%% (zastanów się, czy są Ci one potrzebne)
+ 
+%\listoffigures
+%\listoftables
+%\lstlistoflistings
+
+\end{document}

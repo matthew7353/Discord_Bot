@@ -1,0 +1,49 @@
+%%% TUTAJ PODAJ LISTĘ SWOICH AKRONIMÓW
+%%% Aby poprawnie wyświetliły wszyskie skróty
+%%% należy kilka razy skompilować plik główny
+
+\RequirePackage{acro}
+
+%% Uważaj na formatowanie;
+%% Nie zapomnij o przecinkach
+
+\DeclareAcronym{dry}{
+  short = DRY ,
+  long  = Don't repeat yourself
+}
+\DeclareAcronym{kiss}{
+  short = KISS ,
+  long  = {Keep It Simple, Stupid}
+}
+\DeclareAcronym{sql}{
+  short = SQL,
+  long  = Structured Query Language
+}
+\DeclareAcronym{api}{
+  short = API ,
+  long  = Application Programming Interface,
+  short-plural = APIs ,
+  long-plural  = Application Programming Interfaces
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% NIE RUSZAJ TEGO CO JEST NIŻEJ JEŚLI  %%%
+%% NIE ZNASZ ZBYT DOBRZE LATEX'A        %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newcommand{\ShowAcronyms}[1]{
+  \begin{center}
+    {\Large\bfseries Lista skrótów \par}
+  \end{center}
+  \vspace{0.5em}
+	
+  \ifboolexpr{
+      test {\ifstrequal{#1}{lof}} or
+      test {\ifstrequal{#1}{toc}} or
+      test {\ifstrequal{#1}{description}}
+    }{%
+      \printacronyms[sort=true, heading=none, template=#1]
+    }{%
+      \printacronyms[sort=true, heading=none, template=lof]
+     }%
+  \clearpage
+}
