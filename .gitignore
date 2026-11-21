@@ -1,0 +1,73 @@
+# --- Pliki pośrednie LaTeX-a (generowane przy budowaniu main.tex) ---
+# Pliki .pdf celowo NIE są ignorowane - wynikowy PDF ma zostać w repo.
+
+# Podstawowe
+*.aux
+*.lof
+*.log
+*.lot
+*.out
+*.toc
+*.fls
+*.fmt
+*.fot
+*.cb
+*.cb2
+*.dvi
+*.xdv
+*.ps
+
+# latexmk
+*.fdb_latexmk
+
+# SyncTeX
+*.synctex
+*.synctex.gz
+*.synctex(busy)
+*.synctex.gz(busy)
+*.pdfsync
+
+# Bibliografia (biber / bibtex / biblatex)
+*.bbl
+*.bbl-SAVE-ERROR
+*.bcf
+*.bcf-SAVE-ERROR
+*.blg
+*-blx.aux
+*-blx.bib
+*.run.xml
+
+# Skorowidz / glosariusz / akronimy
+*.idx
+*.ilg
+*.ind
+*.glo
+*.gls
+*.glg
+*.glsdefs
+*.acn
+*.acr
+*.alg
+*.ist
+*.xdy
+*.nlo
+*.nls
+
+# Inne pakiety
+*.lol
+*.loa
+*.nav
+*.snm
+*.vrb
+*.tdo
+*.auxlock
+*.figlist
+*.makefile
+*.listing
+_minted*/
+*.pyg
+
+# Edytory / system
+*~
+*.swp
+.DS_Store
