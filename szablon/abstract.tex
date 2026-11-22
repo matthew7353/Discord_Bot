@@ -5,13 +5,30 @@
 
 \begin{abstracts}
   \AbstractPL
-	Tutaj umieść zwięzłe streszczenie swojej pracy dyplomowej. 
-	Powinno ono zawierać opis celu pracy, zastosowane metody oraz uzyskane wyniki.  \par
-	
-	Oba streszczenia, po polsku i po angielsku, powinny zmieścić się na jednej stronie.
-		
+	Praca dotyczy zaprojektowania i implementacji rozproszonego systemu, który automatycznie tworzy notatki 
+	ze spotkań prowadzonych na kanałach głosowych platformy Discord. Cała 
+	infrastruktura działa w chmurze Azure, a użytkownik obsługuje system wyłącznie za pomocą komend 
+	wpisywanych na czacie Discorda. \par
+
+	W ramach pracy zaprojektowano architekturę złożoną z dwóch części: stale działającego bota oraz 
+	uruchamianego na żądanie zadania przetwarzającego, które wymieniają dane przez \textit{Azure Blob Storage}. 
+	Zaimplementowano bota w środowisku \textit{Node.js} z wykorzystaniem bibliotek \textit{discord.js} 
+	i \textit{@discordjs/voice}. Bot działa 
+	na maszynie wirtualnej serii~B. Opracowano mechanizm śledzenia stanu sesji, dzięki któremu bot 
+	uruchamia przetwarzanie w usłudze \textit{Azure Container Apps Jobs} przez API \textit{Azure Resource 
+	Manager} z użyciem tożsamości zarządzanej (\textit{Managed Identity}), monitoruje jego postęp, 
+	i odsyła gotowe notatki na kanał tekstowy jako plik Markdown. \par
+
+	Przygotowano obraz Dockera, publikowany w \textit{Docker Hub} i uruchamiany na bezserwerowym 
+	procesorze graficznym NVIDIA~T4. Zaimplementowano w nim moduł transkrypcji wykorzystujący model 
+	\textit{Whisper large-v3}, który scala wypowiedzi z nagrań w chronologiczny dialog.
+	Zaimplementowano również moduł generowania notatek, wykorzystujący lokalny 
+	model językowy \textit{gemma4:31b} uruchamiany przez \textit{Ollamę}. Moduł ten dzieli transkrypcję 
+	na fragmenty, streszcza każdy z nich, a następnie łączy streszczenia w notatki.
+	W celu ograniczenia kosztów procesor graficzny jest wykorzystywany tylko w czasie przetwarzania.
+	\textbf{Słowa kluczowe:} \stSlowaKluczowe
+
 	\AbstractENG
 	Place a concise summary of your thesis here. 
 	It should include a description of the purpose of the work, the methods used and the results obtained.
 \end{abstracts}
-
