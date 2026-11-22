@@ -1,0 +1,132 @@
+\chapter{Wstęp}
+\label{chap:wstep}
+
+Komunikatory głosowe stały się powszechnym miejscem spotkań zarówno zespołów
+projektowych, jak i~społeczności skupionych wokół wspólnych zainteresowań.
+Jedną z~najpopularniejszych platform tego typu jest Discord~\cite{Discord},
+który pozwala prowadzić rozmowy na kanałach głosowych serwerów. Platforma nie
+oferuje jednak wbudowanego mechanizmu tworzenia transkrypcji ani notatek ze
+spotkań. Ustalenia, które zapadają w~trakcie rozmowy, pozostają więc wyłącznie
+w~pamięci uczestników albo w~notatkach sporządzanych ręcznie.
+
+Problem ten jest szczególnie widoczny podczas zdalnie prowadzonych sesji gier
+fabularnych (ang.~\textit{role-playing games}, RPG), takich jak
+\textit{Dungeons \& Dragons}. Sesja trwa zazwyczaj kilka godzin, a~w~jej trakcie
+pojawia się wiele informacji, które trzeba pamiętać na kolejnych spotkaniach:
+imiona postaci niezależnych, odwiedzone miejsca, zdobyte przedmioty, podjęte
+decyzje oraz niezakończone wątki fabularne. Ręczne notowanie odciąga gracza od
+rozgrywki, a~powstałe w~ten sposób notatki są zwykle niepełne.
+
+Rozwój metod sztucznej inteligencji pozwala ten proces zautomatyzować. Modele
+automatycznego rozpoznawania mowy, takie jak Whisper~\cite{Whisper}, obsługują
+wiele języków, w~tym język polski, a~duże modele językowe (ang.~\textit{Large
+Language Models}, LLM) potrafią na podstawie długiego i~niedoskonałego tekstu
+przygotować zwięzłe, uporządkowane streszczenie. Oba rodzaje modeli wymagają
+jednak znacznej mocy obliczeniowej, najlepiej procesora graficznego (GPU).
+Utrzymywanie stale włączonej maszyny z~GPU na potrzeby spotkań, które odbywają
+się nieregularnie, byłoby nieopłacalne. Istotną częścią problemu jest więc także
+dobór infrastruktury, w~której płaci się wyłącznie za faktyczny czas obliczeń,
+np.~zadań Azure Container Apps uruchamianych na bezserwerowych
+GPU~\cite{AzureContainerAppsJobs}.
+
+\section{Cel i zakres pracy}
+\label{sec:wstep:cel}
+
+Celem pracy jest zaprojektowanie i~implementacja rozproszonego systemu, który
+automatycznie tworzy notatki ze spotkań prowadzonych na kanałach głosowych
+platformy Discord. System ma nagrywać rozmowę, tworzyć jej transkrypcję
+z~podziałem na mówców, generować na jej podstawie uporządkowane notatki
+w~formacie Markdown i~publikować je na kanale tekstowym serwera. Użytkownik
+obsługuje system wyłącznie za pomocą komend wpisywanych na czacie Discorda.
+Jako główny przypadek użycia przyjęto sesje gry \textit{Dungeons \& Dragons}
+prowadzone w~języku polskim.
+
+System działa w~hybrydowej infrastrukturze chmury Microsoft Azure. Lekki
+komponent odpowiedzialny za komunikację z~Discordem działa stale na maszynie
+wirtualnej, natomiast kosztowne obliczenia z~użyciem modeli sztucznej
+inteligencji są wykonywane na żądanie, w~kontenerze uruchamianym na
+bezserwerowym GPU. Obie części wymieniają dane wyłącznie przez usługę
+Azure Blob Storage.
+
+W~ramach pracy zaplanowano realizację następujących celów szczegółowych:
+\begin{itemize}
+  \item implementacja bota w~środowisku Node.js z~wykorzystaniem bibliotek
+        \texttt{discord.js} i~\texttt{@discordjs/voice}, który na komendę
+        użytkownika dołącza do kanału głosowego i~nagrywa osobny strumień audio
+        dla każdego uczestnika, dzieląc nagrania na fragmenty po wykryciu ciszy,
+  \item zaprojektowanie sposobu przechowywania nagrań i~wyników w~usłudze
+        Azure Blob Storage oraz mechanizmu śledzenia stanu każdej sesji
+        (od nagrania, przez transkrypcję, po gotowe notatki lub błąd),
+  \item implementacja modułu transkrypcji wykorzystującego model
+        Whisper \texttt{large-v3}, który łączy wypowiedzi wszystkich uczestników
+        w~jeden chronologiczny dialog z~oznaczeniem mówców,
+  \item implementacja modułu generowania notatek z~użyciem lokalnie
+        uruchamianego modelu językowego Gemma~\cite{Gemma} udostępnianego przez
+        serwer Ollama~\cite{Ollama}; moduł dzieli transkrypcję na fragmenty,
+        streszcza każdy z~nich, a~następnie scala streszczenia w~notatki
+        o~stałej strukturze,
+  \item przygotowanie obrazu Docker zawierającego oba moduły i~wdrożenie go
+        jako zadania Azure Container Apps na bezserwerowym GPU NVIDIA T4,
+  \item integracja bota z~zadaniem przetwarzającym: uruchamianie go przez
+        interfejs Azure Resource Manager z~użyciem tożsamości zarządzanej
+        (ang.~\textit{Managed Identity}), monitorowanie postępu przetwarzania
+        i~publikowanie gotowych notatek na kanale tekstowym,
+  \item ograniczenie kosztów działania systemu, m.in. przez korzystanie z~GPU
+        tylko w~czasie przetwarzania i~usuwanie surowych nagrań po jego
+        zakończeniu,
+  \item przeprowadzenie testów systemu oraz ocena jakości transkrypcji
+        i~notatek, a~także czasu i~kosztu przetwarzania sesji.
+\end{itemize}
+
+Zakres pracy nie obejmuje trenowania ani dostrajania modeli sztucznej
+inteligencji. W~systemie wykorzystano gotowe, publicznie dostępne modele,
+a~ich zachowanie dostosowano do zadania za pomocą odpowiednio przygotowanych
+instrukcji (ang.~\textit{prompts}) i~parametrów generowania.
+
+\section{Układ pracy}
+\label{sec:wstep:uklad}
+
+% UWAGA: opis rozdziałów odpowiada układowi z wzoru promotora
+% (Wprowadzenie, Implementacja, Testy, Podsumowanie). Popraw, jeśli
+% struktura pracy się zmieni.
+
+Praca składa się z~pięciu rozdziałów. W~rozdziale pierwszym przedstawiono
+tematykę pracy, uzasadnienie wyboru zagadnienia oraz cel i~zakres pracy.
+
+Rozdział drugi stanowi wprowadzenie do zagadnień, na których opiera się
+system. Omówiono w~nim istniejące narzędzia do transkrypcji i~notowania
+spotkań, rozwiązania pozwalające nagrywać rozmowy na platformie Discord oraz
+wykorzystane technologie: modele rozpoznawania mowy, duże modele językowe
+i~usługi chmury Microsoft Azure.
+
+W~rozdziale trzecim opisano implementację systemu. Przedstawiono jego
+architekturę, działanie bota nagrywającego rozmowy, sposób przechowywania
+danych i~śledzenia stanu sesji, moduły transkrypcji i~generowania notatek
+oraz konteneryzację i~wdrożenie w~chmurze. Omówiono również pierwotny wariant
+wdrożenia oparty na dwóch maszynach wirtualnych oraz powody przejścia na
+zadanie uruchamiane na bezserwerowym GPU.
+
+Rozdział czwarty poświęcono testom systemu. Opisano w~nim sposób testowania
+oraz wyniki dotyczące jakości transkrypcji i~notatek, czasu przetwarzania
+i~kosztów działania.
+
+Rozdział piąty zawiera podsumowanie pracy, ocenę stopnia realizacji celu,
+ograniczenia przyjętego rozwiązania oraz możliwe kierunki jego dalszego
+rozwoju.
+
+\section{Wykorzystanie AI}
+\label{sec:wstep:ai}
+
+% Sekcja obowiązkowa wg szablonu WIT -- zob. wytyczne \cite{WITWytyczneSI}.
+% TODO: uzupełnij, czy i jak korzystałeś z narzędzi AI przy pisaniu kodu,
+% oraz oznacz takie fragmenty w komentarzach w kodzie.
+
+Podczas przygotowania pracy, zgodnie z~wytycznymi
+Wydziału~\cite{WITWytyczneSI}, korzystano z~asystenta Claude Opus~5.5 firmy
+Anthropic (w~środowisku Claude Code). Asystent posłużył do analizy
+repozytorium projektu oraz do przygotowania wstępnych wersji streszczenia
+i~wstępu, które następnie zostały zredagowane przez autora.
+
+Należy też podkreślić, że modele sztucznej inteligencji (Whisper oraz Gemma)
+są częścią samego systemu będącego przedmiotem pracy. Ich zastosowanie
+opisano w~rozdziale trzecim.
