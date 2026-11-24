@@ -26,9 +26,9 @@ wymagają jednak znacznej mocy obliczeniowej, najlepiej procesora graficznego
 (ang.~\textit{Graphics Processing Unit}, \acs{gpu}). Utrzymywanie stale
 włączonej maszyny z~\acs{gpu} na potrzeby spotkań, które odbywają
 się nieregularnie, byłoby nieopłacalne. Istotną częścią problemu jest więc także
-dobór infrastruktury, w~której płaci się wyłącznie za faktyczny czas obliczeń,
-np.~zadań Azure Container Apps uruchamianych na bezserwerowych
-\acs{gpu}~\cite{AzureContainerAppsJobs}.
+dobór infrastruktury chmurowej, w~której zasoby obliczeniowe są uruchamiane
+tylko wtedy, gdy są potrzebne, a~płaci się wyłącznie za faktyczny czas ich
+pracy.
 
 \section{Cel i zakres pracy}
 \label{sec:wstep:cel}
@@ -48,10 +48,11 @@ niezbędne zasoby, dobrane z~uwzględnieniem kosztów utrzymania oraz czasu
 działania. Poza samym połączeniem z~Discordem, z~którego będą pochodzić
 nagrania, całe przetwarzanie danych będzie się odbywać w~obrębie chmury Azure,
 a~poszczególne komponenty systemu będą się komunikować za pośrednictwem jej
-usług. Założono podział systemu na dwie części. Lekki i~tani w~utrzymaniu komponent
-odpowiedzialny za komunikację z~Discordem będzie działał stale na maszynie
-wirtualnej, natomiast kosztowne obliczenia z~użyciem modeli sztucznej
-inteligencji będą wykonywane na żądanie. Obie części będą wymieniać dane
+usług. Założono podział systemu na dwie części. Pierwsza, o~niskim zapotrzebowaniu
+na zasoby, będzie odpowiadać za komunikację z~Discordem i~będzie działać stale
+na taniej maszynie wirtualnej. Druga, o~dużej mocy obliczeniowej, będzie
+wykonywać kosztowne obliczenia z~użyciem modeli sztucznej inteligencji
+i~będzie uruchamiana tylko na żądanie. Obie części będą wymieniać dane
 wyłącznie przez usługę Azure Blob Storage.
 
 Przetwarzanie nagrań zostanie powierzone agentom sztucznej inteligencji
@@ -88,12 +89,11 @@ W~ramach pracy zaplanowano realizację następujących celów szczegółowych:
         serwer Ollama~\cite{Ollama}; moduł będzie dzielił transkrypcję na
         fragmenty, streszczał każdy z~nich, a~następnie scalał streszczenia
         w~notatki o~stałej strukturze,
-  \item przygotowanie obrazu Docker zawierającego oba moduły i~wdrożenie go
-        jako zadania Azure Container Apps na bezserwerowym \acs{gpu} NVIDIA T4,
-  \item integracja bota z~zadaniem przetwarzającym, obejmująca uruchamianie go
-        przez interfejs Azure Resource Manager z~użyciem tożsamości zarządzanej
-        (ang.~\textit{Managed Identity}), monitorowanie postępu przetwarzania
-        i~publikowanie gotowych notatek na kanale tekstowym,
+  \item wdrożenie obu modułów w~chmurze Azure na zasobach z~dostępem do
+        \acs{gpu}, uruchamianych wyłącznie na czas przetwarzania nagrań,
+  \item integracja bota z~częścią przetwarzającą, obejmująca automatyczne
+        uruchamianie przetwarzania po zakończeniu nagrania, monitorowanie jego
+        postępu i~publikowanie gotowych notatek na kanale tekstowym,
   \item ograniczenie kosztów działania systemu, m.in. przez korzystanie z~\acs{gpu}
         tylko w~czasie przetwarzania i~usuwanie surowych nagrań po jego
         zakończeniu,
