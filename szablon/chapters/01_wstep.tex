@@ -1,20 +1,22 @@
 \chapter{Wstęp}
 \label{chap:wstep}
+\section{Wprowadzenie}
+\label{sec:wstep:wprowadzenie}
 
 Komunikatory głosowe stały się powszechnym miejscem spotkań zarówno zespołów
 projektowych, jak i~społeczności skupionych wokół wspólnych zainteresowań.
 Jedną z~najpopularniejszych platform tego typu jest Discord~\cite{Discord},
 który pozwala prowadzić rozmowy na kanałach głosowych serwerów. Platforma nie
 oferuje jednak wbudowanego mechanizmu tworzenia transkrypcji ani notatek ze
-spotkań. Ustalenia, które zapadają w~trakcie rozmowy, pozostają więc wyłącznie
-w~pamięci uczestników albo w~notatkach sporządzanych ręcznie.
+spotkań. Treść rozmowy oraz wszystkie ustalenia, które w~jej trakcie zapadają,
+pozostają więc wyłącznie w~pamięci uczestników albo w~notatkach sporządzanych ręcznie.
 
 Problem ten jest szczególnie widoczny podczas zdalnie prowadzonych sesji gier
 fabularnych (ang.~\textit{role-playing games}, \acs{rpg}), takich jak
 \textit{Dungeons \& Dragons}. Sesja trwa zazwyczaj kilka godzin, a~w~jej trakcie
 pojawia się wiele informacji, które trzeba pamiętać na kolejnych spotkaniach:
-imiona postaci niezależnych, odwiedzone miejsca, zdobyte przedmioty, podjęte
-decyzje oraz niezakończone wątki fabularne. Ręczne notowanie odciąga gracza od
+imiona postaci niezależnych, odwiedzone miejsca, wydarzenia fabularne, podjęte
+decyzje oraz niezakończone wątki. Ręczne notowanie odciąga gracza od
 rozgrywki, a~powstałe w~ten sposób notatki są zwykle niepełne.
 
 Rozwój metod sztucznej inteligencji pozwala ten proces zautomatyzować. Modele
@@ -22,13 +24,18 @@ automatycznego rozpoznawania mowy, takie jak Whisper~\cite{Whisper}, obsługują
 wiele języków, w~tym język polski, a~duże modele językowe (ang.~\textit{Large
 Language Models}, \acs{llm}) potrafią na podstawie długiego i~niedoskonałego
 tekstu przygotować zwięzłe, uporządkowane streszczenie. Oba rodzaje modeli
-wymagają jednak znacznej mocy obliczeniowej, najlepiej procesora graficznego
-(ang.~\textit{Graphics Processing Unit}, \acs{gpu}). Utrzymywanie stale
-włączonej maszyny z~\acs{gpu} na potrzeby spotkań, które odbywają
-się nieregularnie, byłoby nieopłacalne. Istotną częścią problemu jest więc także
-dobór infrastruktury chmurowej, w~której zasoby obliczeniowe są uruchamiane
-tylko wtedy, gdy są potrzebne, a~płaci się wyłącznie za faktyczny czas ich
-pracy.
+wymagają jednak dużej mocy obliczeniowej, najlepiej procesora graficznego
+(ang.~\textit{Graphics Processing Unit}, \acs{gpu}), dlatego równie ważny jak
+same modele jest dobór infrastruktury, na której zostaną uruchomione.
+
+Temat niniejszej pracy wybrano, aby możliwie najbardziej usprawnić tworzenie
+notatek i~odciążyć uczestników sesji. Umieszczenie całego systemu w~chmurze
+sprawi, że gracze nie będą musieli niczego instalować ani uruchamiać na
+własnych komputerach, a~obsługa systemu ograniczy się do kilku komend na
+czacie. Dzięki temu będą mogli w~pełni skupić się na rozgrywce. Dodatkowo
+temat pozwala wykorzystać w~praktyce modele rozpoznawania mowy, modele
+\acs{llm} oraz usługi chmury obliczeniowej i~zmierzyć się z~problemem kosztów
+ich utrzymania.
 
 \section{Cel i zakres pracy}
 \label{sec:wstep:cel}
